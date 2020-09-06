@@ -168,6 +168,7 @@ export const CellInput = ({
 
         cm.setOption("extraKeys", keys)
         cm.setOption("lineWrapping", false)
+        cm.setOption("autoCloseBrackets", true)
 
         cm.on("cursorActivity", () => {
             if (cm.somethingSelected()) {
