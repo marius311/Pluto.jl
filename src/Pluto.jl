@@ -24,20 +24,14 @@ const ENV_DEFAULTS = Dict(
         preferred_dir = startswith(Sys.BINDIR, pwd()) ? homedir() : pwd()
         joinpath(preferred_dir, "") # must end with / or \
     end,
+    "PLUTO_DEFAULT_ENVIRONMENT_PATH" => let
+        # Use the global environment, ~/.julia/environments/v<major>.<minor> as fallback environment.
+        # The package environment for new notebooks does not inherit from the environment in which the server was launched - this is intentional.
+        Base.load_path_expand("@v#.#")
+    end,
 )
+
 get_pl_env(key::String) = haskey(ENV, key) ? ENV[key] : ENV_DEFAULTS[key]
-
-if get(ENV, "PLUTO_SHOW_BANNER", "true") == "true"
-@info """\n
-    Welcome to Pluto $(PLUTO_VERSION_STR) 🎈
-    Start a notebook server using:
-
-  julia> Pluto.run()
-
-    Have a look at the FAQ:
-    https://github.com/fonsp/Pluto.jl/wiki
-\n"""
-end
 
 include("./evaluation/Tokens.jl")
 include("./runner/PlutoRunner.jl")
@@ -56,6 +50,7 @@ include("./evaluation/WorkspaceManager.jl")
 include("./evaluation/Update.jl")
 include("./evaluation/Run.jl")
 
+include("./webserver/Configuration.jl")
 include("./webserver/MsgPack.jl")
 include("./webserver/PutUpdates.jl")
 include("./webserver/SessionActions.jl")
@@ -63,5 +58,17 @@ include("./webserver/Static.jl")
 include("./webserver/Dynamic.jl")
 include("./webserver/REPLTools.jl")
 include("./webserver/WebServer.jl")
+
+if get(ENV, "PLUTO_SHOW_BANNER", "true") == "true"
+@info """\n
+    Welcome to Pluto $(PLUTO_VERSION_STR) 🎈
+    Start a notebook server using:
+
+  julia> Pluto.run()
+
+    Have a look at the FAQ:
+    https://github.com/fonsp/Pluto.jl/wiki
+\n"""
+end
 
 end

@@ -23,20 +23,57 @@ function HTTP.closebody(http::HTTP.Stream{HTTP.Messages.Request,S}) where S <: I
     end
 end
 
+# from https://github.com/JuliaLang/julia/pull/36425
+function detectwsl()
+    Sys.islinux() &&
+    isfile("/proc/sys/kernel/osrelease") &&
+    occursin(r"Microsoft|WSL"i, read("/proc/sys/kernel/osrelease", String))
+end
+
+function open_in_default_browser(url::AbstractString)::Bool
+    try
+        if Sys.isapple()
+            Base.run(`open $url`)
+            true
+        elseif Sys.iswindows() || detectwsl()
+            Base.run(`cmd.exe /s /c start "" /b $url`)
+            true
+        elseif Sys.islinux()
+            Base.run(`xdg-open $url`)
+            true
+        else
+            false
+        end
+    catch ex
+        false
+    end
+end
 
 """
-    run([host,] port=1234)
+    run([host,] port=1234[; kwargs...])
 
 Start Pluto! Are you excited? I am!
 
+## Arguments
+
+- `host`: Optional. The default `host` is `"127.0.0.1"`. For wild setups like Docker and heroku, you might need to change this to `"0.0.0.0"`.
+- `port`: Optional. The default `port` is `1234`.
+
+## Kwargs
+
+- `configuration`: specifiy the `Pluto.ServerConfiguration` to change the HTTP server behavior.
+- `session`: specifiy the `Pluto.ServerSession` to run the web server on.
+- `security`: specifiy the `Pluto.ServerSecurity` options for the web server.
+
+Different configurations are possible by creating a custom [`ServerConfiguration`](@ref), [`ServerSession`](@ref) or [`ServerSecurity`](@ref) object. Have a look at their documentation.
+
 ## Technobabble
 
-The default `host` is `"127.0.0.1"`. For wild setups like Docker and heroku, you might need to change this to `"0.0.0.0"`.
-
-This will start the static HTTP server and a WebSocket server. The server runs _synchronously_ (i.e. blocking call) on `http://[host]:[port]/`. Pluto notebooks can be started from the main menu in the web browser.
+This will start the static HTTP server and a WebSocket server. The server runs _synchronously_ (i.e. blocking call) on `http://[host]:[port]/`.
+Pluto notebooks can be started from the main menu in the web browser.
 """
-function run(host, port::Union{Nothing,Integer}=nothing; launchbrowser::Bool=false, session=ServerSession())
-    pluto_router = http_router_for(session)
+function run(host, port::Union{Nothing,Integer}=nothing; configuration=ServerConfiguration(), session=ServerSession(), security=ServerSecurity(true))
+    pluto_router = http_router_for(session, security)
 
     hostIP = parse(Sockets.IPAddr, host)
     if port === nothing
@@ -90,7 +127,7 @@ function run(host, port::Union{Nothing,Integer}=nothing; launchbrowser::Bool=fal
                         catch ex
                             if ex isa InterruptException
                                 kill_server[]()
-                            elseif ex isa HTTP.WebSockets.WebSocketError
+                            elseif ex isa HTTP.WebSockets.WebSocketError || ex isa EOFError
                                 # that's fine!
                             elseif ex isa InexactError
                                 # that's fine! this is a (fixed) HTTP.jl bug: https://github.com/JuliaWeb/HTTP.jl/issues/471
@@ -151,18 +188,23 @@ function run(host, port::Union{Nothing,Integer}=nothing; launchbrowser::Bool=fal
         end
     end
 
-    address = let
+    address = if configuration.root_url === nothing
         hostPretty = (hostStr = string(hostIP)) == "127.0.0.1" ? "localhost" : hostStr
         portPretty = Int(port)
         "http://$(hostPretty):$(portPretty)/"
+    else
+        configuration.root_url
     end
     Sys.set_process_title("Pluto server - $address")
-    println("Go to $address to start writing ~ have fun!")
+
+    if configuration.launch_browser && open_in_default_browser(address)
+        println("Opening $address in your default browser... ~ have fun!")
+    else
+        println("Go to $address in your browser to start writing ~ have fun!")
+    end
     println()
     println("Press Ctrl+C in this terminal to stop Pluto")
     println()
-    
-    launchbrowser && @warn "Not implemented yet"
 
     kill_server[] = () -> @sync begin
         println("\n\nClosing Pluto... Restart Julia for a fresh session. \n\nHave a nice day! 🎈")

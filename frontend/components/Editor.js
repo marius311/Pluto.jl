@@ -223,6 +223,7 @@ export class Editor extends Component {
                 }
             }
         }
+        this.on_update = on_update
 
         const on_establish_connection = (client) => {
             // nasty
@@ -362,7 +363,7 @@ export class Editor extends Component {
                         new_ids.push(cell_id)
                     } else {
                         const update = await this.requests.add_remote_cell_at(index + i, true)
-                        this.client.on_update(update, true)
+                        on_update(update, true)
                         new_ids.push(update.cell_id)
                     }
                 }
@@ -645,8 +646,10 @@ export class Editor extends Component {
                 // fall into:
                 case 46: // delete
                     const selected = this.state.notebook.cells.filter((c) => c.selected)
-                    this.requests.confirm_delete_multiple(selected)
-                    e.preventDefault()
+                    if (selected.length > 0) {
+                        this.requests.confirm_delete_multiple(selected)
+                        e.preventDefault()
+                    }
                     break
                 case 191: // ? or /
                     if (!(e.ctrlKey && e.shiftKey)) {
@@ -841,7 +844,7 @@ export class Editor extends Component {
                             },
                         })
                     }}
-                    on_focus_neighbor=${(cell_id, delta) => {
+                    on_focus_neighbor=${(cell_id, delta, line, ch) => {
                         const i = this.state.notebook.cells.findIndex((c) => c.cell_id === cell_id)
                         const new_i = i + delta
                         if (new_i >= 0 && new_i < this.state.notebook.cells.length) {
@@ -849,7 +852,8 @@ export class Editor extends Component {
                                 new CustomEvent("cell_focus", {
                                     detail: {
                                         cell_id: this.state.notebook.cells[new_i].cell_id,
-                                        line: delta === -1 ? Infinity : -1,
+                                        line: line,
+                                        ch: ch
                                     },
                                 })
                             )
@@ -899,7 +903,7 @@ export class Editor extends Component {
                 recently_deleted=${this.state.recently_deleted}
                 on_click=${() => {
                     this.requests.add_remote_cell_at(this.state.recently_deleted.index, true).then((update) => {
-                        this.client.on_update(update, true)
+                        this.on_update(update, true)
                         this.actions.update_local_cell_input({ cell_id: update.cell_id }, false, this.state.recently_deleted.body, false).then(() => {
                             this.requests.change_remote_cell(update.cell_id, this.state.recently_deleted.body)
                         })
