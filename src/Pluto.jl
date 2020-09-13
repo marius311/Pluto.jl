@@ -24,13 +24,7 @@ const ENV_DEFAULTS = Dict(
         preferred_dir = startswith(Sys.BINDIR, pwd()) ? homedir() : pwd()
         joinpath(preferred_dir, "") # must end with / or \
     end,
-    "PLUTO_DEFAULT_ENVIRONMENT_PATH" => let
-        # Use the global environment, ~/.julia/environments/v<major>.<minor> as fallback environment.
-        # The package environment for new notebooks does not inherit from the environment in which the server was launched - this is intentional.
-        Base.load_path_expand("@v#.#")
-    end,
 )
-
 get_pl_env(key::String) = haskey(ENV, key) ? ENV[key] : ENV_DEFAULTS[key]
 
 include("./evaluation/Tokens.jl")
